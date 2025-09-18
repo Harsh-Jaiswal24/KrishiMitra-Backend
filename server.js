@@ -20,9 +20,7 @@
 //   console.log(`✅ Server running at http://localhost:${PORT}`);
 // });
 
-
 const express = require("express");
-const axios = require("axios");
 require("dotenv").config();
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -44,7 +42,7 @@ app.get("/health", (req, res) => {
   res.send("✅ All Is Okay — Server Running");
 });
 
-// 🌾 TEST RECOMMENDATION ROUTE (No validation, direct Gemini output)
+// 🌾 TEST RECOMMENDATION ROUTE (NO location API, Gemini handles everything)
 app.get("/test-recommendation", async (req, res) => {
   try {
     const { lat, lon } = req.query;
@@ -52,37 +50,49 @@ app.get("/test-recommendation", async (req, res) => {
       return res.status(400).json({ error: "lat and lon query params are required" });
     }
 
-    // 1️⃣ Fetch location details
-    const locationUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
-    const locationResponse = await axios.get(locationUrl);
-    const locationData = locationResponse.data;
-
-    // 2️⃣ Prompt for Gemini
+    // 🔥 Directly give Gemini the coordinates, let it figure out soil, weather, and crops
     const prompt = `
-You are an expert crop advisor. Based on the following location details:
-${JSON.stringify(locationData)}
+You are an expert crop advisor AI.
+Analyze the following coordinates: latitude ${lat}, longitude ${lon}.
 
-Recommend 5 crops suitable for this location.
-Include fields:
-name, reason, estimate time, water requirements, explanation,
-fertilizer requirement, pesticides requirement, expected yield range, sustainability note.
+1. Find the exact location (state, district, village if possible).
+2. Get relevant weather details, rainfall, temperature range, and soil type for this location.
+3. Recommend the 5 most efficient and profitable crops for this location based on soil, climate, and profitability.
 
-Return ONLY valid JSON in this format:
+Return STRICTLY valid JSON in this format:
 
 {
-  "location": ${JSON.stringify(locationData)},
+  "location": {
+    "coordinates": { "lat": "${lat}", "lon": "${lon}" },
+    "detected_location": "string - name of village/district/state",
+    "weather_summary": "short summary of weather & climate",
+    "soil_summary": "soil type, fertility, and moisture capacity"
+  },
   "ai_crop_recommendations": {
-    "recommended_crops": [ ... ]
+    "recommended_crops": [
+      {
+        "name": "Crop Name",
+        "reason": "Why it is suitable here",
+        "estimate time": "duration in days/months",
+        "water requirements": "low/medium/high (mm range)",
+        "explanation": "Detailed description about crop choice and local suitability",
+        "fertilizer requirement": "NPK details",
+        "pesticides requirement": "low/medium/high + key pests",
+        "expected yield range": "per hectare yield range",
+        "sustainability note": "tips to improve soil health, water conservation"
+      }
+    ]
   }
 }
-`;
+Only output valid JSON. Do not include markdown, comments, or extra text.
+    `;
 
-    // 3️⃣ Get AI Response (Send directly without parsing)
+    // Call Gemini
     const result = await geminiModel.generateContent(prompt);
     const aiResponse = result?.response?.text() || "{}";
 
     res.setHeader("Content-Type", "application/json");
-    res.send(aiResponse); // Send raw response from Gemini (no validation)
+    res.send(aiResponse); // ✅ Send raw Gemini output
 
   } catch (error) {
     console.error("❌ Test Recommendation Error:", error.message);
@@ -96,7 +106,7 @@ Return ONLY valid JSON in this format:
 // Main Recommendation Routes
 app.use("/recommendation", recommendationRoutes);
 
-// Keep-alive ping (for free hosts like Render)
+// Keep-alive ping (for Render free tier)
 setInterval(() => console.log("⏳ Keep-alive ping..."), 5 * 60 * 1000);
 
 app.listen(PORT, () => {
