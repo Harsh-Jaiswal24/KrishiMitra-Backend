@@ -21,11 +21,12 @@
 // });
 
 
-
 const express = require("express");
 const axios = require("axios");
 require("dotenv").config();
+
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const recommendationRoutes = require("./routes/recommendationRoutes");
 
@@ -34,8 +35,8 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// Gemini AI Setup (force 2.5-pro here)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Gemini AI Setup
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
 // Health Check
@@ -43,102 +44,51 @@ app.get("/health", (req, res) => {
   res.send("✅ All Is Okay — Server Running");
 });
 
-// 🌾 TEST RECOMMENDATION ROUTE
+// 🌾 TEST RECOMMENDATION ROUTE (No validation, direct Gemini output)
 app.get("/test-recommendation", async (req, res) => {
   try {
     const { lat, lon } = req.query;
-
     if (!lat || !lon) {
       return res.status(400).json({ error: "lat and lon query params are required" });
     }
 
-    // 1️⃣ Fetch location details from OpenStreetMap
+    // 1️⃣ Fetch location details
     const locationUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
     const locationResponse = await axios.get(locationUrl);
-    console.log(locationResponse);
     const locationData = locationResponse.data;
-    console.log(locationData);
 
-    // 2️⃣ Prepare Gemini prompt (STRICT JSON)
+    // 2️⃣ Prompt for Gemini
     const prompt = `
 You are an expert crop advisor. Based on the following location details:
 ${JSON.stringify(locationData)}
 
-Recommend 5 crops suitable for this location. 
-For EACH crop include:
-- name
-- reason
-- estimate time (growing duration)
-- water requirements
-- explanation
-- fertilizer requirement
-- pesticides requirement
-- expected yield range
-- sustainability note
+Recommend 5 crops suitable for this location.
+Include fields:
+name, reason, estimate time, water requirements, explanation,
+fertilizer requirement, pesticides requirement, expected yield range, sustainability note.
 
-Return STRICTLY in this JSON format (no extra text, no markdown):
+Return ONLY valid JSON in this format:
 
 {
   "location": ${JSON.stringify(locationData)},
   "ai_crop_recommendations": {
-    "recommended_crops": [
-      {
-        "name": "Wheat",
-        "reason": "...",
-        "estimate time": "...",
-        "water requirements ": "...",
-        "explanation": "...",
-        "fertilizer requirement": "...",
-        "pesticides requirement": "...",
-        "expected yield range": "...",
-        "sustainability note": "..."
-      }
-    ]
+    "recommended_crops": [ ... ]
   }
 }
-Only respond with valid JSON. Do not include markdown, comments, or extra text.
-Reccomand 5 crops most efficient and profitable crops for that location
-    `;
+`;
 
-    // 3️⃣ Generate response with Gemini 2.5 Pro
+    // 3️⃣ Get AI Response (Send directly without parsing)
     const result = await geminiModel.generateContent(prompt);
-    const aiResponse = result?.response?.text();
+    const aiResponse = result?.response?.text() || "{}";
 
-    let parsedData;
-    try {
-      parsedData = JSON.parse(aiResponse);
-    } catch (err) {
-      console.error("❌ Gemini returned invalid JSON. Fallback to dummy data.");
-      parsedData = {
-        location: locationData,
-        ai_crop_recommendations: {
-          recommended_crops: [
-            {
-              name: "Wheat",
-              reason: "Fallback crop recommendation (Gemini failed).",
-              "estimate time": "6-7 months",
-              "water requirements ": "Moderate",
-              explanation: "Fallback data — AI response failed.",
-              "fertilizer requirement": "Balanced NPK",
-              "pesticides requirement": "Minimal use",
-              "expected yield range": "3-5 tonnes/ha",
-              "sustainability note": "Rotate with legumes"
-            }
-          ]
-        }
-      };
-    }
-
-    // Simulate small delay (2s)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    res.json(parsedData);
+    res.setHeader("Content-Type", "application/json");
+    res.send(aiResponse); // Send raw response from Gemini (no validation)
 
   } catch (error) {
     console.error("❌ Test Recommendation Error:", error.message);
     res.status(500).json({
       error: "Failed to generate crop recommendation",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -146,7 +96,7 @@ Reccomand 5 crops most efficient and profitable crops for that location
 // Main Recommendation Routes
 app.use("/recommendation", recommendationRoutes);
 
-// Keep server awake (Render free tier)
+// Keep-alive ping (for free hosts like Render)
 setInterval(() => console.log("⏳ Keep-alive ping..."), 5 * 60 * 1000);
 
 app.listen(PORT, () => {
