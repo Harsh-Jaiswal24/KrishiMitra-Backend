@@ -4,7 +4,7 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 async function getCropRecommendation(location, weather, soilProps, soilClass) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
 You are an agricultural expert AI. Based on the following data, recommend the top 5 most suitable crops for this region right now to grow by farmers based on given data also check current water details of that location by yourself which crop will be highly efficient and supportive in given expected weather , temperature and other soil detials of given and next few months .

@@ -8,6 +8,10 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+app.get("/health",(req,res)=>{
+  res.send("All Is Okay Server Running");
+})
+
 // Routes
 app.use("/recommendation", recommendationRoutes);
 
