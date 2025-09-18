@@ -55,7 +55,9 @@ app.get("/test-recommendation", async (req, res) => {
     // 1️⃣ Fetch location details from OpenStreetMap
     const locationUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
     const locationResponse = await axios.get(locationUrl);
+    console.log(locationResponse);
     const locationData = locationResponse.data;
+    console.log(locationData);
 
     // 2️⃣ Prepare Gemini prompt (STRICT JSON)
     const prompt = `
@@ -95,6 +97,7 @@ Return STRICTLY in this JSON format (no extra text, no markdown):
   }
 }
 Only respond with valid JSON. Do not include markdown, comments, or extra text.
+Reccomand 5 crops most efficient and profitable crops for that location
     `;
 
     // 3️⃣ Generate response with Gemini 2.5 Pro
