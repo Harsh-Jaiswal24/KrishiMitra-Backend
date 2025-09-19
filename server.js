@@ -21,14 +21,21 @@
 // });
 
 const express = require("express");
+const app = express();
 require("dotenv").config();
+
+const cors = require('cors');
+
+ app.use(cors({
+      origin: '*' // Allow all origins
+    }));
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const recommendationRoutes = require("./routes/recommendationRoutes");
 
-const app = express();
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
