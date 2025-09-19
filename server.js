@@ -20,6 +20,11 @@
 //   console.log(`✅ Server running at http://localhost:${PORT}`);
 // });
 
+
+
+
+
+
 const express = require("express");
 const app = express();
 require("dotenv").config();
@@ -49,7 +54,73 @@ app.get("/health", (req, res) => {
   res.send("✅ All Is Okay — Server Running");
 });
 
-// 🌾 TEST RECOMMENDATION ROUTE (NO location API, Gemini handles everything)
+// // 🌾 TEST RECOMMENDATION ROUTE (NO location API, Gemini handles everything)
+// app.get("/test-recommendation", async (req, res) => {
+//   try {
+//     const { lat, lon } = req.query;
+//     if (!lat || !lon) {
+//       return res.status(400).json({ error: "lat and lon query params are required" });
+//     }
+
+//     // 🔥 Directly give Gemini the coordinates, let it figure out soil, weather, and crops
+//     const prompt = `
+// You are an expert crop advisor AI.
+// Analyze the following coordinates: latitude ${lat}, longitude ${lon}.
+
+// 1. Find the exact location (state, district, village if possible).
+// 2. Get relevant weather details, rainfall, temperature range, and soil type for this location.
+// 3. Recommend the 5 most efficient and profitable crops for this location based on soil, climate, and profitability.
+
+// Return STRICTLY valid JSON in this format:
+// do not add jsonn or any symbol or text  json direclty send in { "location" :{} , "ai_crop_recommendations":{}}
+// {
+//   "location": {
+//     "coordinates": { "lat": "${lat}", "lon": "${lon}" },
+//     "detected_location": "string - name of village/district/state",
+//     "weather_summary": "short summary of weather & climate",
+//     "soil_summary": "soil type, fertility, and moisture capacity"
+//   },
+//   "ai_crop_recommendations": {
+//     "recommended_crops": [
+//       {
+//         "name": "Crop Name",
+//         "reason": "Why it is suitable here",
+//         "estimate time": "duration in days/months",
+//         "water requirements": "low/medium/high (mm range)",
+//         "explanation": "Detailed description about crop choice and local suitability",
+//         "fertilizer requirement": "NPK details",
+//         "pesticides requirement": "low/medium/high + key pests",
+//         "expected yield range": "per hectare yield range",
+//         "sustainability note": "tips to improve soil health, water conservation"
+//       }
+//     ]
+//   }
+// }
+// Only output valid JSON. Do not include markdown, comments, or extra text.
+//     `;
+
+//     // Call Gemini
+//     const result = await geminiModel.generateContent(prompt);
+//     const aiResponse = result?.response?.text() || "{}";
+
+//     res.setHeader("Content-Type", "application/json");
+//     res.send(aiResponse); // ✅ Send raw Gemini output
+
+//   } catch (error) {
+//     console.error("❌ Test Recommendation Error:", error.message);
+//     res.status(500).json({
+//       error: "Failed to generate crop recommendation",
+//       details: error.message,
+//     });
+//   }
+// });
+
+
+
+
+
+
+
 app.get("/test-recommendation", async (req, res) => {
   try {
     const { lat, lon } = req.query;
@@ -57,7 +128,6 @@ app.get("/test-recommendation", async (req, res) => {
       return res.status(400).json({ error: "lat and lon query params are required" });
     }
 
-    // 🔥 Directly give Gemini the coordinates, let it figure out soil, weather, and crops
     const prompt = `
 You are an expert crop advisor AI.
 Analyze the following coordinates: latitude ${lat}, longitude ${lon}.
@@ -67,39 +137,56 @@ Analyze the following coordinates: latitude ${lat}, longitude ${lon}.
 3. Recommend the 5 most efficient and profitable crops for this location based on soil, climate, and profitability.
 
 Return STRICTLY valid JSON in this format:
-
 {
-  "location": {
-    "coordinates": { "lat": "${lat}", "lon": "${lon}" },
-    "detected_location": "string - name of village/district/state",
-    "weather_summary": "short summary of weather & climate",
-    "soil_summary": "soil type, fertility, and moisture capacity"
-  },
-  "ai_crop_recommendations": {
-    "recommended_crops": [
-      {
-        "name": "Crop Name",
-        "reason": "Why it is suitable here",
-        "estimate time": "duration in days/months",
-        "water requirements": "low/medium/high (mm range)",
-        "explanation": "Detailed description about crop choice and local suitability",
-        "fertilizer requirement": "NPK details",
-        "pesticides requirement": "low/medium/high + key pests",
-        "expected yield range": "per hectare yield range",
-        "sustainability note": "tips to improve soil health, water conservation"
-      }
-    ]
-  }
+  "location": { ... },
+  "ai_crop_recommendations": { ... }
 }
 Only output valid JSON. Do not include markdown, comments, or extra text.
+one of output will looks like thia 
+{
+//   "location": {
+//     "coordinates": { "lat": "${lat}", "lon": "${lon}" },
+//     "detected_location": "string - name of village/district/state",
+//     "weather_summary": "short summary of weather & climate",
+//     "soil_summary": "soil type, fertility, and moisture capacity"
+//   },
+//   "ai_crop_recommendations": {
+//     "recommended_crops": [
+//       {
+//         "name": "Crop Name",
+//         "reason": "Why it is suitable here",
+//         "estimate time": "duration in days/months",
+//         "water requirements": "low/medium/high (mm range)",
+//         "explanation": "Detailed description about crop choice and local suitability",
+//         "fertilizer requirement": "NPK details",
+//         "pesticides requirement": "low/medium/high + key pests",
+//         "expected yield range": "per hectare yield range",
+//         "sustainability note": "tips to improve soil health, water conservation"
+//       }
+//     ]
+//   }
+// }
     `;
 
-    // Call Gemini
     const result = await geminiModel.generateContent(prompt);
-    const aiResponse = result?.response?.text() || "{}";
+    let aiResponse = result?.response?.text() || "{}";
 
-    res.setHeader("Content-Type", "application/json");
-    res.send(aiResponse); // ✅ Send raw Gemini output
+    // ✅ Remove ```json and ``` from Gemini output if present
+    aiResponse = aiResponse.replace(/```json|```/g, "").trim();
+
+    // ✅ Parse to ensure it's valid JSON before sending
+    let parsed;
+    try {
+      parsed = JSON.parse(aiResponse);
+    } catch (err) {
+      console.error("❌ Invalid JSON from Gemini:", aiResponse);
+      return res.status(500).json({
+        error: "Invalid JSON received from Gemini",
+        raw: aiResponse,
+      });
+    }
+
+    res.json(parsed); // ✅ Send proper JSON response
 
   } catch (error) {
     console.error("❌ Test Recommendation Error:", error.message);
@@ -110,6 +197,10 @@ Only output valid JSON. Do not include markdown, comments, or extra text.
   }
 });
 
+
+
+
+
 // Main Recommendation Routes
 app.use("/recommendation", recommendationRoutes);
 
@@ -119,3 +210,4 @@ setInterval(() => console.log("⏳ Keep-alive ping..."), 5 * 60 * 1000);
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
+//////finalll
