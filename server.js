@@ -47,7 +47,7 @@ const PORT = process.env.PORT || 3000;
 
 // Gemini AI Setup
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Health Check
 app.get("/health", (req, res) => {
